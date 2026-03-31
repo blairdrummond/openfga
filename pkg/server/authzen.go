@@ -148,14 +148,16 @@ func getAuthorizationModelIDFromHeader(ctx context.Context) string {
 
 // errorContext builds an arbitrary JSON context object for error responses,
 // per the AuthZen spec where context is a free-form JSON object.
-func errorContext(httpStatus uint32, message string) *structpb.Struct {
+func errorContext(httpStatus uint32, message string) *authzenv1.Context {
 	ctx, _ := structpb.NewStruct(map[string]any{
 		"error": map[string]any{
 			"status":  httpStatus,
 			"message": message,
 		},
 	})
-	return ctx
+	return &authzenv1.Context{
+		Data: ctx,
+	}
 }
 
 // buildCheckRequest translates AuthZen evaluation fields into an OpenFGA CheckRequest.
@@ -164,7 +166,7 @@ func buildCheckRequest(
 	subject *authzenv1.Subject,
 	resource *authzenv1.Resource,
 	action *authzenv1.Action,
-	reqContext *structpb.Struct,
+	reqContext *authzenv1.Context,
 ) (*openfgav1.CheckRequest, error) {
 	if subject == nil {
 		return nil, fmt.Errorf("missing subject")
@@ -176,7 +178,17 @@ func buildCheckRequest(
 		return nil, fmt.Errorf("missing action")
 	}
 
-	mergedContext, err := mergePropertiesToContext(reqContext, subject, resource, action)
+	var Data *structpb.Struct
+	var consistency openfgav1.ConsistencyPreference
+	var contextualTuples *openfgav1.ContextualTupleKeys
+
+	if reqContext != nil {
+		Data = reqContext.GetData()
+		consistency = reqContext.GetConsistency()
+		contextualTuples = reqContext.GetTuples()
+	}
+
+	mergedContext, err := mergePropertiesToContext(Data, subject, resource, action)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +201,9 @@ func buildCheckRequest(
 			Relation: action.GetName(),
 			Object:   fmt.Sprintf("%s:%s", resource.GetType(), resource.GetId()),
 		},
-		Context: mergedContext,
+		Context:          mergedContext,
+		Consistency:      consistency,
+		ContextualTuples: contextualTuples,
 	}, nil
 }
 
@@ -288,8 +302,8 @@ func (s *Server) Evaluations(ctx context.Context, req *authzenv1.EvaluationsRequ
 func resolveEvalFields(
 	eval *authzenv1.EvaluationsItemRequest,
 	topSubject *authzenv1.Subject, topResource *authzenv1.Resource,
-	topAction *authzenv1.Action, topContext *structpb.Struct,
-) (*authzenv1.Subject, *authzenv1.Resource, *authzenv1.Action, *structpb.Struct) {
+	topAction *authzenv1.Action, topContext *authzenv1.Context,
+) (*authzenv1.Subject, *authzenv1.Resource, *authzenv1.Action, *authzenv1.Context) {
 	subject := eval.GetSubject()
 	if subject == nil {
 		subject = topSubject
@@ -455,7 +469,7 @@ func (s *Server) SubjectSearch(ctx context.Context, req *authzenv1.SubjectSearch
 	authorizationModelID := getAuthorizationModelIDFromHeader(ctx)
 
 	mergedContext, err := mergePropertiesToContext(
-		req.GetContext(), req.GetSubject(), req.GetResource(), req.GetAction(),
+		req.GetContext().GetData(), req.GetSubject(), req.GetResource(), req.GetAction(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to merge properties: %v", err)
@@ -468,8 +482,10 @@ func (s *Server) SubjectSearch(ctx context.Context, req *authzenv1.SubjectSearch
 			Type: req.GetResource().GetType(),
 			Id:   req.GetResource().GetId(),
 		},
-		Relation: req.GetAction().GetName(),
-		Context:  mergedContext,
+		Relation:         req.GetAction().GetName(),
+		Context:          mergedContext,
+		ContextualTuples: req.GetContext().GetTuples().GetTupleKeys(),
+		Consistency:      req.GetContext().GetConsistency(),
 		UserFilters: []*openfgav1.UserTypeFilter{
 			{Type: req.GetSubject().GetType()},
 		},
@@ -501,7 +517,7 @@ func (s *Server) ResourceSearch(ctx context.Context, req *authzenv1.ResourceSear
 	authorizationModelID := getAuthorizationModelIDFromHeader(ctx)
 
 	mergedContext, err := mergePropertiesToContext(
-		req.GetContext(), req.GetSubject(), req.GetResource(), req.GetAction(),
+		req.GetContext().GetData(), req.GetSubject(), req.GetResource(), req.GetAction(),
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to merge properties: %v", err)
@@ -516,6 +532,8 @@ func (s *Server) ResourceSearch(ctx context.Context, req *authzenv1.ResourceSear
 		Relation:             req.GetAction().GetName(),
 		Type:                 req.GetResource().GetType(),
 		Context:              mergedContext,
+		ContextualTuples:     req.GetContext().GetTuples(),
+		Consistency:          req.GetContext().GetConsistency(),
 	}, collector)
 	if err != nil {
 		return nil, err
@@ -572,7 +590,7 @@ func (s *Server) ActionSearch(ctx context.Context, req *authzenv1.ActionSearchRe
 	}
 
 	mergedContext, err := mergePropertiesToContext(
-		req.GetContext(), req.GetSubject(), req.GetResource(), nil,
+		req.GetContext().GetData(), req.GetSubject(), req.GetResource(), nil,
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to merge properties: %v", err)
@@ -594,8 +612,9 @@ func (s *Server) ActionSearch(ctx context.Context, req *authzenv1.ActionSearchRe
 				Relation: rel,
 				Object:   object,
 			},
-			Context:       mergedContext,
-			CorrelationId: strconv.Itoa(i),
+			Context:          mergedContext,
+			ContextualTuples: req.GetContext().GetTuples(),
+			CorrelationId:    strconv.Itoa(i),
 		})
 	}
 
@@ -603,6 +622,7 @@ func (s *Server) ActionSearch(ctx context.Context, req *authzenv1.ActionSearchRe
 		StoreId:              req.GetStoreId(),
 		AuthorizationModelId: resolvedModelID,
 		Checks:               checks,
+		Consistency:          req.GetContext().GetConsistency(),
 	})
 	if err != nil {
 		return nil, err

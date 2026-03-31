@@ -514,7 +514,7 @@ func TestEvaluations(t *testing.T) {
 			StoreId: tc.storeID,
 			Subject: &authzenv1.Subject{Type: "user", Id: "alice"},
 			Action:  &authzenv1.Action{Name: "reader"},
-			Context: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 10}),
+			Context: &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 10})},
 			Evaluations: []*authzenv1.EvaluationsItemRequest{
 				{Resource: &authzenv1.Resource{Type: "document", Id: "doc1"}},
 				{Resource: &authzenv1.Resource{Type: "document", Id: "doc2"}},
@@ -530,7 +530,7 @@ func TestEvaluations(t *testing.T) {
 			StoreId: tc.storeID,
 			Subject: &authzenv1.Subject{Type: "user", Id: "alice"},
 			Action:  &authzenv1.Action{Name: "reader"},
-			Context: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 22}),
+			Context: &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 22})},
 			Evaluations: []*authzenv1.EvaluationsItemRequest{
 				{Resource: &authzenv1.Resource{Type: "document", Id: "doc1"}},
 				{Resource: &authzenv1.Resource{Type: "document", Id: "doc2"}},
@@ -568,12 +568,12 @@ func TestEvaluations(t *testing.T) {
 			StoreId: tc.storeID,
 			Subject: &authzenv1.Subject{Type: "user", Id: "alice"},
 			Action:  &authzenv1.Action{Name: "reader"},
-			Context: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 22}), // Default: outside hours
+			Context: &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 22})}, // Default: outside hours
 			Evaluations: []*authzenv1.EvaluationsItemRequest{
 				{Resource: &authzenv1.Resource{Type: "document", Id: "doc1"}}, // Uses default context
 				{
 					Resource: &authzenv1.Resource{Type: "document", Id: "doc2"},
-					Context:  testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 10}), // Override: within hours
+					Context:  &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{"current_hour": 10})}, // Override: within hours
 				},
 			},
 		})
@@ -619,7 +619,7 @@ func TestEvaluations(t *testing.T) {
 		require.False(t, resp.GetEvaluations()[1].GetDecision()) // Error results in false decision
 		// Per spec, error info is in context.error (context is a free-form JSON object)
 		require.NotNil(t, resp.GetEvaluations()[1].GetContext())
-		require.NotNil(t, resp.GetEvaluations()[1].GetContext().GetFields()["error"])
+		require.NotNil(t, resp.GetEvaluations()[1].GetContext().GetData().GetFields()["error"])
 	})
 
 	// AuthZEN spec section 3: Feature disabled should return error
@@ -678,7 +678,7 @@ func TestEvaluations(t *testing.T) {
 		// First evaluation has error
 		require.False(t, resp.GetEvaluations()[0].GetDecision())
 		require.NotNil(t, resp.GetEvaluations()[0].GetContext())
-		require.NotNil(t, resp.GetEvaluations()[0].GetContext().GetFields()["error"])
+		require.NotNil(t, resp.GetEvaluations()[0].GetContext().GetData().GetFields()["error"])
 		// Second evaluation is permit - processing stops
 		require.True(t, resp.GetEvaluations()[1].GetDecision())
 	})
@@ -717,7 +717,7 @@ func TestEvaluations(t *testing.T) {
 		require.Len(t, resp.GetEvaluations(), 3) // All evaluations processed
 		// First: error
 		require.False(t, resp.GetEvaluations()[0].GetDecision())
-		require.NotNil(t, resp.GetEvaluations()[0].GetContext().GetFields()["error"])
+		require.NotNil(t, resp.GetEvaluations()[0].GetContext().GetData().GetFields()["error"])
 		// Second: allowed
 		require.True(t, resp.GetEvaluations()[1].GetDecision())
 		// Third: denied

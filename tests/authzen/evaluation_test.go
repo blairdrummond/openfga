@@ -62,7 +62,7 @@ func TestEvaluation(t *testing.T) {
 			Subject:  &authzenv1.Subject{Type: "user", Id: "alice"},
 			Resource: &authzenv1.Resource{Type: "document", Id: "doc1"},
 			Action:   &authzenv1.Action{Name: "reader"},
-			Context:  ctx,
+			Context:  &authzenv1.Context{Data: ctx},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetDecision())
@@ -74,7 +74,7 @@ func TestEvaluation(t *testing.T) {
 			Subject:  &authzenv1.Subject{Type: "user", Id: "alice"},
 			Resource: &authzenv1.Resource{Type: "document", Id: "doc1"},
 			Action:   &authzenv1.Action{Name: "reader"},
-			Context:  ctx,
+			Context:  &authzenv1.Context{Data: ctx},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.GetDecision())
@@ -112,10 +112,10 @@ func TestEvaluation(t *testing.T) {
 				Properties: testutils.MustNewStruct(t, map[string]interface{}{"department": "engineering"}),
 			},
 			Action: &authzenv1.Action{Name: "reader"},
-			Context: testutils.MustNewStruct(t, map[string]interface{}{
+			Context: &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{
 				"subject_department":  "engineering",
 				"resource_department": "engineering",
-			}),
+			})},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetDecision())
@@ -134,10 +134,10 @@ func TestEvaluation(t *testing.T) {
 				Properties: testutils.MustNewStruct(t, map[string]interface{}{"department": "sales"}),
 			},
 			Action: &authzenv1.Action{Name: "reader"},
-			Context: testutils.MustNewStruct(t, map[string]interface{}{
+			Context: &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{
 				"subject_department":  "engineering",
 				"resource_department": "sales",
-			}),
+			})},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.GetDecision())
@@ -351,7 +351,7 @@ func TestEvaluation(t *testing.T) {
 			Subject:  &authzenv1.Subject{Type: "user", Id: "alice"},
 			Resource: &authzenv1.Resource{Type: "resource", Id: "secret"},
 			Action:   &authzenv1.Action{Name: "can_access"},
-			Context:  ctx,
+			Context:  &authzenv1.Context{Data: ctx},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetDecision())
@@ -367,7 +367,7 @@ func TestEvaluation(t *testing.T) {
 			Subject:  &authzenv1.Subject{Type: "user", Id: "bob"},
 			Resource: &authzenv1.Resource{Type: "resource", Id: "secret"},
 			Action:   &authzenv1.Action{Name: "can_access"},
-			Context:  ctx,
+			Context:  &authzenv1.Context{Data: ctx},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetDecision())
@@ -383,7 +383,7 @@ func TestEvaluation(t *testing.T) {
 			Subject:  &authzenv1.Subject{Type: "user", Id: "bob"},
 			Resource: &authzenv1.Resource{Type: "resource", Id: "secret"},
 			Action:   &authzenv1.Action{Name: "can_access"},
-			Context:  ctx,
+			Context:  &authzenv1.Context{Data: ctx},
 		})
 		require.NoError(t, err)
 		require.False(t, resp.GetDecision())
@@ -475,7 +475,7 @@ func TestEvaluation(t *testing.T) {
 			},
 			Resource: &authzenv1.Resource{Type: "document", Id: "doc1"},
 			Action:   &authzenv1.Action{Name: "reader"},
-			Context:  testutils.MustNewStruct(t, map[string]interface{}{"subject_level": 10}),
+			Context:  &authzenv1.Context{Data: testutils.MustNewStruct(t, map[string]interface{}{"subject_level": 10})},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetDecision(), "Expected permit because context overrides properties")

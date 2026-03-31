@@ -23,15 +23,15 @@ import (
 )
 
 // getContextError extracts the "error" field from an evaluation response context struct.
-func getContextError(ctx *structpb.Struct) *structpb.Value {
-	if ctx == nil {
+func getContextError(ctx *authzenv1.Context) *structpb.Value {
+	if ctx == nil || ctx.GetData() == nil {
 		return nil
 	}
-	return ctx.GetFields()["error"]
+	return ctx.GetData().GetFields()["error"]
 }
 
 // getContextErrorStatus extracts the status from a context error.
-func getContextErrorStatus(ctx *structpb.Struct) uint32 {
+func getContextErrorStatus(ctx *authzenv1.Context) uint32 {
 	errVal := getContextError(ctx)
 	if errVal == nil {
 		return 0
